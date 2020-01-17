@@ -942,10 +942,56 @@ class CEDriver(NetworkDriver):
                 ntp_server[match] = {}
         return ntp_server
 
-    def __get_ntp_stats(self):
+    def get_ntp_stats(self):
+        """
+        Return a list of NTP synchronization statistics.
+
+        Sample output:
+        [
+            {
+                'remote'        : u'188.114.101.4',
+                'referenceid'   : u'188.114.100.1',
+                'synchronized'  : True,
+                'stratum'       : 4,
+                'type'          : u'-',
+                'when'          : u'107',
+                'hostpoll'      : 256,
+                'reachability'  : 377,
+                'delay'         : 164.228,
+                'offset'        : -13.866,
+                'jitter'        : 2.695
+            }
+        ]
+        """
+        re_ntp_sessions = r'clock source: (\d+\.\d+\.\d+\.\d+)\n.*clock stratum: (\d+)\n.*clock status: (.*)\n.*ID: (\d+\.\d+\.\d+\.\d+)\n.*reach: (\d+)\n.*poll: (\d+)\n.*now: (\d+)\n.*offset: (-?\d+.\d+).*\n.*delay: (\d+.\d+).*\n.*disper: (\d+.\d+).*'
         ntp_stats = []
-        # command = "display ntp status"
-        # output = self.device.send_command(command)
+        command = "display ntp sessions | no-more"
+        output = self.device.send_command(command)
+        try:
+            matches = re.findall(re_ntp_sessions, output)
+            for match in matches:
+                synchronized = False
+                statuses = match[2]
+                statuses = [x.strip() for x in statuses.split(',')]
+                if 'sane' and 'valid' in statuses:
+                    synchronized = True
+
+                session = {
+                    "remote": match[0],
+                    "referenceid": match[3],
+                    "synchronized": synchronized,
+                    "stratum": int(match[1]),
+                    "type": "",
+                    "when": int(match[6]),
+                    "hostpoll": int(match[5]),
+                    "reachability": int(match[4]),
+                    "delay": float(match[8]),
+                    "offset": float(match[7]),
+                    "jitter": float(match[9])
+                }
+                ntp_stats.append(session)
+        except:
+            return False
         return ntp_stats
 
     @staticmethod
