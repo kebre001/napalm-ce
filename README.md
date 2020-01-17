@@ -4,13 +4,15 @@
 
 This is a [NAPALM](https://github.com/napalm-automation/napalm) community driver for the Huawei CloudEngine Switch.
 
+Adjustments will be made to function with [Saltstack](https://docs.saltstack.com/en/latest/ref/modules/all/salt.modules.napalm_network.html#module-salt.modules.napalm_network)
+
 
 ## Quick start
-
+This will not work for this fork
 ```shell
 pip install napalm-ce
 ```
-
+Exampel code:
 ```python
 from napalm import get_network_driver
 
@@ -31,6 +33,8 @@ Check the full [NAPALM Docs](https://napalm.readthedocs.io/en/latest/index.html)
 * compare_config()
 * discard_config()
 * get_arp_table()
+* get_bgp_neighbors()
+* get_bgp_neighbors_detail()
 * get_config(retrieve=u'all')
 * get_environment()
 * get_facts()
@@ -38,7 +42,10 @@ Check the full [NAPALM Docs](https://napalm.readthedocs.io/en/latest/index.html)
 * get_interfaces_counters()
 * get_interfaces_ip()
 * get_lldp_neighbors()
+* get_lldp_neighbors_detail()
 * get_mac_address_table()
+* get_ntp_servers()
+* get_ntp_stats()
 * get_users()
 * is_alive()
 * load_merge_candidate(filename=None, config=None)
@@ -46,10 +53,3 @@ Check the full [NAPALM Docs](https://napalm.readthedocs.io/en/latest/index.html)
 * open()
 * ping(destination, source=u'', ttl=255, timeout=2, size=100, count=5, vrf=u'')
 * rollback()
-
-
-## Setting up a Lab Environment
-
-You can download Huawei eNSP simulator for free from [Huawei website](http://support.huawei.com/enterprise/wn/network-management/ensp-pid-9017384/software) after make an account. You can learn how to install it by this [tutorial](https://www.youtube.com/watch?v=Yw8HPPwrzZU).
-
-
