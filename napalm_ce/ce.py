@@ -920,7 +920,7 @@ class CEDriver(NetworkDriver):
         # output = self.device.send_command(command)
         return ntp_server
 
-    def __get_ntp_servers(self):
+    def get_ntp_servers(self):
         """
         Return the NTP servers configuration as dictionary.
 
@@ -932,9 +932,14 @@ class CEDriver(NetworkDriver):
             '162.158.20.18': {}
         }
         """
+        re_ntp_sessions = r"clock source: (\d+\.\d+\.\d+\.\d+)"
         ntp_server = {}
-        # command = "display ntp trace"
-        # output = self.device.send_command(command)
+        command = "display ntp sessions"
+        output = self.device.send_command(command)
+        matches = re.findall(re_ntp_sessions, output)
+        if len(matches) > 0:
+            for match in matches:
+                ntp_server[match] = {}
         return ntp_server
 
     def __get_ntp_stats(self):
