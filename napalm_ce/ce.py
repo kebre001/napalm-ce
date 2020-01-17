@@ -1022,6 +1022,192 @@ class CEDriver(NetworkDriver):
             return False
         return ntp_stats
 
+    def get_bgp_neighbors(self):
+        re_bgp_neighbors = '(\d+.\d+.\d+.\d+.)\s+(\w)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+(\w+)\s+(\d+)'
+        command = 'display bgp peer | no-more'
+        output = self.device.send_command(command)
+        matches = re.findall(re_bgp_neighbors, output)
+
+        neighbors = {
+            "global": {
+                "router-id": "1.2.3.4",
+                "peers": {}
+            }
+        }
+
+        for match in matches:
+            neighbors["global"]["peers"][match[0]] = {
+                "local_as": "",
+                "remote_as": match["2"],
+                "remote_id": match["0"],
+                "is_up": True,
+                "is_enabled": True,
+                "description": "Abc",
+                "uptime": 123456,
+                "address_family": {
+                    "ipv4": {
+                        "sent_prefixes": 1,
+                        "accepted_prefixes": 2,
+                        "received_prefixes": 3
+                    },
+                    "ipv6": {
+                        "sent_prefixes": 1,
+                        "accepted_prefixes": 2,
+                        "received_prefixes": 3
+                    }
+                }
+            }
+
+        return neighbors
+
+    def get_bgp_neighbors_detail(self, neighbor_address=""):
+        """
+        {
+            'global': {
+                8121: [
+                    {
+                        'up'                        : True,
+                        'local_as'                  : 13335,
+                        'remote_as'                 : 8121,
+                        'local_address'             : u'172.101.76.1',
+                        'local_address_configured'  : True,
+                        'local_port'                : 179,
+                        'routing_table'             : u'inet.0',
+                        'remote_address'            : u'192.247.78.0',
+                        'remote_port'               : 58380,
+                        'multihop'                  : False,
+                        'multipath'                 : True,
+                        'remove_private_as'         : True,
+                        'import_policy'             : u'4-NTT-TRANSIT-IN',
+                        'export_policy'             : u'4-NTT-TRANSIT-OUT',
+                        'input_messages'            : 123,
+                        'output_messages'           : 13,
+                        'input_updates'             : 123,
+                        'output_updates'            : 5,
+                        'messages_queued_out'       : 23,
+                        'connection_state'          : u'Established',
+                        'previous_connection_state' : u'EstabSync',
+                        'last_event'                : u'RecvKeepAlive',
+                        'suppress_4byte_as'         : False,
+                        'local_as_prepend'          : False,
+                        'holdtime'                  : 90,
+                        'configured_holdtime'       : 90,
+                        'keepalive'                 : 30,
+                        'configured_keepalive'      : 30,
+                        'active_prefix_count'       : 132808,
+                        'received_prefix_count'     : 566739,
+                        'accepted_prefix_count'     : 566479,
+                        'suppressed_prefix_count'   : 0,
+                        'advertised_prefix_count'   : 0,
+                        'flap_count'                : 27
+                    }
+                ]
+            }
+        }
+        :param neighbor_address:
+        :return:
+        """
+
+        peers = {
+            "global": {}
+        }
+
+        re_bgp_brief = r'(\d+\.\d+\.\d+\.\d+)\W+(\d)\W+(\d+)\W+(\d+)\W+(\d+)\W+(\d+)\W+(\w+)\W+(Established|Idle|Idle\(Admin\)|Idle\(Ovlmt\)|Connect|Active|OpenSent|OpenConfirm|No neg)\W+(\d+)'
+        re_bgp_brief_local_as = r'Local AS number\W+(\d+)'
+
+        command = "display bgp peer"
+        output = self.device.send_command(command)
+        matches = re.findall(re_bgp_brief, output, re.S)
+        local_as = re.findall(re_bgp_brief_local_as, output)  # <--- Applicable for us
+
+        # Make sure the dictionary has all key's necessary
+        for match in matches:
+            peer_as = match[2]
+
+            if not peer_as in peers["global"]:
+                peers["global"][peer_as] = []
+
+        for match in matches:
+            peer_ip = match[0]
+            peer_version = match[1]
+            peer_as = match[2]
+
+            command = "display bgp peer {} verbose | no-more".format(peer_ip)
+            # Expect_string needed due to large output??
+            output = self.device.send_command(command, expect_string="<")
+
+            re_bgp_detail_state = r'BGP current state: (\w+), (\w+) for (.*)'
+            re_bgp_detail_peer = r'BGP Peer is (\d+.\d+.\d+.\d+).*AS (\d+)'
+            re_bgp_detail_last_state = r'BGP last state: (\w+)'
+            re_bgp_detail_ports = r'Port: Local - (\d+)\W+Remote - (\d+)'
+            re_bgp_detail_received = r'Received:.*\n.*messages\W+(\d+)\n.*messages\W+(\d+)\n.*messages\W+(\d+)\n.*messages\W+(\d+)\n.*messages\W+(\d+)\n.*messages\W+(\d+)\n'
+            re_bgp_detail_sent = r'Sent\W+:.*\n.*messages\W+(\d+)\n.*messages\W+(\d+)\n.*messages\W+(\d+)\n.*messages\W+(\d+)\n.*messages\W+(\d+)\n.*messages\W+(\d+)\n'
+            re_bgp_detail_flaps = r'BGP Peer Up count: (\d+)'
+            re_bgp_detail_routes = r'Received total routes: (\d+)\n Received active routes total: (\d+)\n Advertised total routes: (\d+)'
+            re_bgp_detail_event = r'BGP current event: (\w+)'
+            re_bgp_detail_times = r'Configured: Active Hold Time: (\d+).*:(\d+).*\n.*\n Negotiated: Active Hold Time: (\d+).*:(\d+)'
+            re_bgp_detail_policies = r'Import route policy is: (.*)\n Export route policy is: (.*)'
+
+            state = re.findall(re_bgp_detail_state, output)[0]
+            peer = re.findall(re_bgp_detail_peer, output)[0]
+            last_state = re.findall(re_bgp_detail_last_state, output)[0]
+            ports = re.findall(re_bgp_detail_ports, output)[0]
+            sent = re.findall(re_bgp_detail_sent, output)[0]
+            received = re.findall(re_bgp_detail_received, output)[0]
+            flaps = re.findall(re_bgp_detail_flaps, output)[0]
+            routes = re.findall(re_bgp_detail_routes, output)[0]
+            event = re.findall(re_bgp_detail_event, output)[0]
+            times = re.findall(re_bgp_detail_times, output)[0]
+
+            up = False
+            if "UP" in state[1].upper():
+                up = True
+
+            policies = ["", ""]
+            if "No routing policy is configured" not in output:
+                policies = re.findall(re_bgp_detail_policies)[0]
+
+            peer = {
+                'up': up,
+                'local_as': local_as,
+                'remote_as': peer[1],
+                'local_address': u'',
+                #'local_address_configured': True,
+                'local_port': ports[0],
+                'routing_table': u'',
+                'remote_address': peer[0],
+                'remote_port': ports[1],
+                #'multihop': False,
+                #'multipath': True,
+                'remove_private_as': True,
+                'import_policy': policies[0],
+                'export_policy': policies[1],
+                'input_messages': received[0],
+                'output_messages': sent[0],
+                'input_updates': received[1],
+                'output_updates': sent[1],
+                'messages_queued_out': 0,
+                'connection_state': state[0],
+                'previous_connection_state': last_state,
+                'last_event': event,
+                #'suppress_4byte_as': False,
+                #'local_as_prepend': False,
+                'holdtime': times[2],
+                'configured_holdtime': times[0],
+                'keepalive': times[1],
+                'configured_keepalive': times[3],
+                'active_prefix_count': routes[1],
+                'received_prefix_count': routes[0],
+                #'accepted_prefix_count': 0,
+                #'suppressed_prefix_count': 0,
+                'advertised_prefix_count': routes[2],
+                'flap_count': flaps
+            }
+
+            peers["global"][peer_as].append(peer)
+
+        return peers
+
     @staticmethod
     def _separate_section(separator, content):
         if content == "":
