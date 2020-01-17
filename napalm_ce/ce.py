@@ -880,7 +880,7 @@ class CEDriver(NetworkDriver):
         }
         return snmp_information
 
-    def __get_lldp_neighbors_detail(self, interface=''):
+    def get_lldp_neighbors_detail(self, interface=''):
         """
         Return a detailed view of the LLDP neighbors as a dictionary.
 
@@ -901,6 +901,34 @@ class CEDriver(NetworkDriver):
         }
         """
         lldp_neighbors = {}
+
+        re_lldp_brief = r"(?P<local>\S+)\s+\d+\s+(?P<port>\S+)\s+(?P<hostname>\S+)"
+        re_lldp_detail = r"Chassis ID\s+:(.*)\n.*\nPort ID\s+:(.*)\nPort description\s+:(.*)\nSystem name\s+:(.*)\nSystem description\s+:(.*(\n.*){1,6})\nSystem capabilities supported\s+:(.+)\nSystem capabilities enabled\s+:(.*)\n"
+
+        command = 'display lldp neighbor brief'
+        output = self.device.send_command(command)
+        match = re.findall(re_lldp_brief, output, re.M)
+
+        for neighbor_brief in match:
+            local_iface = neighbor_brief[0]
+            command = 'display lldp neighbor interface {}'.format(local_iface)
+            output = self.device.send_command(command)
+            match_detail = re.findall(re_lldp_detail, output, re.M)
+
+            lldp_neighbors[local_iface] = []
+            for neighbor in match_detail:
+                neighbor_dict = {
+                    'parent_interface': local_iface,
+                    'remote_chassis_id': neighbor[0],
+                    'remote_system_name': neighbor[3],
+                    'remote_port': neighbor[1],
+                    'remote_port_description': neighbor[2],
+                    'remote_system_description': neighbor[4],
+                    'remote_system_capab': neighbor[5],
+                    'remote_system_enable_capab': neighbor[5]
+                }
+                lldp_neighbors[local_iface].append(neighbor_dict)
+
         return lldp_neighbors
 
     def __get_ntp_peers(self):
